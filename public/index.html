@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Book</title>
+</head>
+<body style="background-color: #faf9f6; font-family: sans-serif;">
+
+    <div style="max-width: 800px; margin: 20px auto; padding: 20px; text-align: center;">
+
+        <div id="auth-page">
+            <h1>Welcome to Recipe Book</h1>
+            <p>Login or create an account to continue</p>
+            <p id="auth-error" style="color: red;"></p>
+            <form id="auth-form">
+                <input type="text" id="username" placeholder="Username" required style="padding: 8px; margin: 5px; width: 250px;">
+                <br>
+                <input type="password" id="password" placeholder="Password" required style="padding: 8px; margin: 5px; width: 250px;">
+                <br><br>
+                <button type="submit" name="action" value="login" style="padding: 10px 20px;">Login</button>
+                <button type="submit" name="action" value="signup" style="padding: 10px 20px;">Sign Up</button>
+            </form>
+        </div>
+
+        <div id="main-page" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 id="welcome-message" style="text-align: left;"></h1>
+                </div>
+                <button id="logout-button" style="padding: 8px 15px;">Logout</button>
+            </div>
+            
+            <hr style="margin: 20px 0;">
+
+            <div>
+                <input type="search" id="search-input" placeholder="Search recipes by name..." style="padding: 8px; width: 40%;">
+                <select id="sort-select" style="padding: 8px;">
+                    <option value="name">Sort by Name</option>
+                    <option value="prepTime">Sort by Prep Time</option>
+                </select>
+                <button id="go-to-create-page" style="padding: 8px 15px;">Create New</button>
+            </div>
+            
+            <div style="margin-top: 20px; text-align: left;">
+                <h3>Filter by Ingredients:</h3>
+                <div id="ingredient-filter-list">
+                </div>
+            </div>
+
+            <hr style="margin: 20px 0;">
+
+            <div id="recipe-list" style="text-align: left;">
+            </div>
+        </div>
+
+        <div id="create-page" style="display: none;">
+            <button id="back-to-main" style="padding: 8px 15px;">&larr; Back to Recipes</button>
+            <hr>
+            <h2>Create Something New</h2>
+            
+            <div>
+                <label>
+                    <input type="radio" name="create-type" value="recipe" checked> Create Recipe
+                </label>
+                <label>
+                    <input type="radio" name="create-type" value="ingredient"> Create Ingredient
+                </label>
+            </div>
+            <p id="create-error" style="color: red;"></p>
+            <p id="create-success" style="color: green;"></p>
+
+            <form id="create-ingredient-form" style="display: none;">
+                <br>
+                <input type="text" id="new-ingredient-name" placeholder="New ingredient name" required style="padding: 8px; width: 300px;">
+                <br><br>
+                <button type="submit" style="padding: 10px 20px;">Save Ingredient</button>
+            </form>
+
+            <form id="create-recipe-form">
+                <br>
+                <input type="text" id="new-recipe-name" placeholder="Recipe Name" required style="padding: 8px; width: 100%; box-sizing: border-box; margin-bottom: 10px;">
+                <textarea id="new-recipe-details" placeholder="Recipe details, instructions..." required style="padding: 8px; width: 100%; height: 100px; box-sizing: border-box; margin-bottom: 10px;"></textarea>
+                <input type="number" id="new-recipe-prep-time" placeholder="Prep time (in minutes)" required style="padding: 8px; width: 100%; box-sizing: border-box; margin-bottom: 10px;">
+                
+                <h3>Ingredients:</h3>
+                <div id="recipe-ingredient-inputs">
+                </div>
+                <button type="button" id="add-ingredient-row" style="margin-top: 10px;">+ Add Ingredient</button>
+                <br><br>
+                <hr>
+                <button type="submit" style="padding: 10px 20px; margin-top: 10px;">Save Recipe</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        var state = { currentUser: null, ingredients: [], recipes: [] };
+        var pages = {
+            auth: document.getElementById('auth-page'),
+            main: document.getElementById('main-page'),
+            create: document.getElementById('create-page')
+        };
+
+        function navigateTo(page) {
+            if (page === 'auth') {
+                pages.auth.style.display = 'block';
+                pages.main.style.display = 'none';
+                pages.create.style.display = 'none';
+            } else if (page === 'main') {
+                pages.auth.style.display = 'none';
+                pages.main.style.display = 'block';
+                pages.create.style.display = 'none';
+            } else if (page === 'create') {
+                pages.auth.style.display = 'none';
+                pages.main.style.display = 'none';
+                pages.create.style.display = 'block';
+            }
+        }
+
+        document.getElementById('auth-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var action = e.submitter.value;
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+            var url = action === 'login' ? '/api/login' : '/api/signup';
+
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, password: password }),
+            }).then(function(response) {
+                if (!response.ok) {
+                    return response.json().then(function(err) { throw new Error(err.error); });
+                }
+                return response.json();
+            }).then(function(data) {
+                state.currentUser = { username: username };
+                sessionStorage.setItem('user', JSON.stringify(state.currentUser));
+                initializeApp();
+            }).catch(function(err) {
+                document.getElementById('auth-error').textContent = err.message;
+            });
+        });
+        
+        document.getElementById('logout-button').addEventListener('click', function() {
+            state.currentUser = null;
+            sessionStorage.removeItem('user');
+            navigateTo('auth');
+        });
+
+        function initializeApp() {
+            if (state.currentUser) {
+                document.getElementById('welcome-message').textContent = 'Welcome, ' + state.currentUser.username + '!';
+                navigateTo('main');
+                fetchAndRenderAll();
+            } else {
+                navigateTo('auth');
+            }
+        }
+        
+        function fetchAndRenderAll() {
+            fetchIngredients();
+            fetchRecipesAndRender();
+        }
+
+        function fetchIngredients() {
+            fetch('/api/ingredients?username=' + state.currentUser.username)
+                .then(function(response) { return response.json(); })
+                .then(function(ingredients) {
+                    state.ingredients = ingredients;
+                    renderIngredientFilters();
+                });
+        }
+
+        function fetchRecipesAndRender() {
+            var search = document.getElementById('search-input').value;
+            var sortBy = document.getElementById('sort-select').value;
+            var checkedBoxes = document.querySelectorAll('#ingredient-filter-list input:checked');
+            var ingredientIds = [];
+            for (var i = 0; i < checkedBoxes.length; i++) {
+                ingredientIds.push(checkedBoxes[i].dataset.id);
+            }
+            var ingredientIdsString = ingredientIds.join(',');
+
+            var url = '/api/recipes?username=' + state.currentUser.username + '&search=' + search + '&sortBy=' + sortBy + '&ingredients=' + ingredientIdsString;
+            
+            fetch(url)
+                .then(function(response) { return response.json(); })
+                .then(function(recipes) {
+                    state.recipes = recipes;
+                    renderRecipes();
+                });
+        }
+        
+        function renderIngredientFilters() {
+            var listEl = document.getElementById('ingredient-filter-list');
+            var html = '';
+            for (var i = 0; i < state.ingredients.length; i++) {
+                var ing = state.ingredients[i];
+                html += '<label style="margin-right: 15px; display: inline-block;">' +
+                       '<input type="checkbox" data-id="' + ing.id + '"> ' + ing.name +
+                       '</label>';
+            }
+            listEl.innerHTML = html;
+        }
+
+        function renderRecipes() {
+            var listEl = document.getElementById('recipe-list');
+            if (state.recipes.length === 0) {
+                 listEl.innerHTML = '<p>No recipes found.</p>';
+                 return;
+            }
+
+            var html = '';
+            for (var i = 0; i < state.recipes.length; i++) {
+                var recipe = state.recipes[i];
+                var detailsId = 'details-' + recipe.id;
+                
+                var ingredientsHtml = '';
+                for (var j = 0; j < recipe.RecipeIngredient.length; j++) {
+                    var ing = recipe.RecipeIngredient[j];
+                    ingredientsHtml += '<li><strong>' + ing.quantity + '</strong> ' + ing.ingredient.name + '</li>';
+                }
+
+                html += '<div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 10px;">' +
+                       '<div onclick="toggleDetails(\'' + detailsId + '\')" style="cursor: pointer;">' +
+                       '<h3>' + recipe.name + '</h3>' +
+                       '<p>' + recipe.prepTime + ' minutes prep time (Click to expand)</p>' +
+                       '</div>' +
+                       '<div id="' + detailsId + '" style="display: none; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px;">' +
+                       '<h4>Details:</h4>' +
+                       '<p style="white-space: pre-wrap;">' + recipe.details + '</p>' +
+                       '<h4>Ingredients:</h4>' +
+                       '<ul>' + ingredientsHtml + '</ul>' +
+                       '</div>' +
+                       '</div>';
+            }
+            listEl.innerHTML = html;
+        }
+
+        function toggleDetails(elementId) {
+            var el = document.getElementById(elementId);
+            if (el.style.display === 'none') {
+                el.style.display = 'block';
+            } else {
+                el.style.display = 'none';
+            }
+        }
+        
+        document.getElementById('search-input').addEventListener('input', fetchRecipesAndRender);
+        document.getElementById('sort-select').addEventListener('change', fetchRecipesAndRender);
+        document.getElementById('ingredient-filter-list').addEventListener('change', fetchRecipesAndRender);
+
+        document.querySelectorAll('input[name="create-type"]').forEach(function(radio) {
+            radio.addEventListener('change', function(e) {
+                var isRecipe = e.target.value === 'recipe';
+                document.getElementById('create-recipe-form').style.display = isRecipe ? 'block' : 'none';
+                document.getElementById('create-ingredient-form').style.display = isRecipe ? 'none' : 'block';
+            });
+        });
+        
+        function showCreateMessage(msg, type) {
+            var el = document.getElementById(type === 'success' ? 'create-success' : 'create-error');
+            el.textContent = msg;
+            setTimeout(function() { el.textContent = ''; }, 3000);
+        }
+
+        document.getElementById('create-ingredient-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var name = document.getElementById('new-ingredient-name').value;
+            var ingredientData = { name: name, username: state.currentUser.username };
+
+            fetch('/api/ingredients', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(ingredientData)
+            }).then(function(response) {
+                if (!response.ok) {
+                    return response.json().then(function(err) { throw new Error(err.error); });
+                }
+                showCreateMessage('Ingredient created!', 'success');
+                document.getElementById('create-ingredient-form').reset();
+                fetchIngredients();
+            }).catch(function(err) {
+                showCreateMessage(err.message, 'error');
+            });
+        });
+
+        document.getElementById('create-recipe-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var recipeData = {
+                name: document.getElementById('new-recipe-name').value,
+                details: document.getElementById('new-recipe-details').value,
+                prepTime: parseInt(document.getElementById('new-recipe-prep-time').value, 10),
+                username: state.currentUser.username,
+                ingredients: []
+            };
+            
+            var ingredientRows = document.querySelectorAll('.ingredient-row');
+            ingredientRows.forEach(function(row) {
+                var id = row.querySelector('.ingredient-select').value;
+                var qty = row.querySelector('.ingredient-quantity').value;
+                if (id && qty) {
+                    recipeData.ingredients.push({ ingredientId: parseInt(id, 10), quantity: qty });
+                }
+            });
+            
+            if (recipeData.ingredients.length === 0) {
+                 return showCreateMessage('Add at least one ingredient.', 'error');
+            }
+
+            fetch('/api/recipes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(recipeData)
+            }).then(function(response){
+                if (!response.ok) {
+                    return response.json().then(function(err) { throw new Error(err.error); });
+                }
+                showCreateMessage('Recipe created!', 'success');
+                document.getElementById('recipe-ingredient-inputs').innerHTML = '';
+                document.getElementById('create-recipe-form').reset();
+                addIngredientRow();
+            }).catch(function(err) {
+                showCreateMessage(err.message, 'error');
+            });
+        });
+
+        function addIngredientRow() {
+            var container = document.getElementById('recipe-ingredient-inputs');
+            var row = document.createElement('div');
+            row.className = 'ingredient-row';
+            
+            var select = document.createElement('select');
+            select.className = 'ingredient-select';
+            var optionsHtml = '<option value="">Select an ingredient</option>';
+            for (var i=0; i < state.ingredients.length; i++) {
+                var ing = state.ingredients[i];
+                optionsHtml += '<option value="' + ing.id + '">' + ing.name + '</option>';
+            }
+            select.innerHTML = optionsHtml;
+            
+            var quantity = document.createElement('input');
+            quantity.type = 'text';
+            quantity.className = 'ingredient-quantity';
+            quantity.placeholder = 'Quantity (e.g., 2 cups)';
+            
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.textContent = 'Remove';
+            removeBtn.onclick = function() { row.remove(); };
+            
+            row.appendChild(select);
+            row.appendChild(quantity);
+            row.appendChild(removeBtn);
+            row.style.marginBottom = '10px';
+            container.appendChild(row);
+        }
+
+        document.getElementById('add-ingredient-row').addEventListener('click', addIngredientRow);
+
+        document.getElementById('go-to-create-page').addEventListener('click', function() {
+            navigateTo('create');
+            document.getElementById('recipe-ingredient-inputs').innerHTML = '';
+            addIngredientRow();
+        });
+        document.getElementById('back-to-main').addEventListener('click', initializeApp);
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var storedUser = sessionStorage.getItem('user');
+            if (storedUser) {
+                state.currentUser = JSON.parse(storedUser);
+            }
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
+
