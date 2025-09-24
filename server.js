@@ -74,7 +74,7 @@ app.post('/api/ingredients', function(req, res) {
         return res.status(400).json({ error: 'Ingredient name and username are required.' });
     }
     
-    // FIX: Changed prisma.ingredient to prisma.ingredients
+    
     prisma.ingredients.create({
         data: { 
             name: name,
@@ -168,7 +168,7 @@ app.post('/api/recipes', function(req, res) {
       name: name,
       details: details,
       prepTime: prepTime,
-      // FIX: Changed 'users' to 'UserRecipe'
+      
       UserRecipe: {
         create: {
           userId: username,
