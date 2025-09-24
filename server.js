@@ -55,7 +55,7 @@ app.get('/api/ingredients', function(req, res) {
     return res.status(400).json({ error: 'Username is required to fetch ingredients.' });
   }
   
-  // FIX: Changed prisma.ingredient to prisma.ingredients
+  
   prisma.ingredients.findMany({
     where: { creatorUsername: username },
     orderBy: { name: 'asc' }
@@ -101,7 +101,7 @@ app.get('/api/recipes', function(req, res) {
   }
 
   var where = {
-    // FIX: Changed 'users' to 'UserRecipe' to match the relation name in the schema
+    
     UserRecipe: {
       some: {
         userId: username,
@@ -118,7 +118,7 @@ app.get('/api/recipes', function(req, res) {
         return parseInt(id, 10);
     });
     if (ingredientIds.length > 0) {
-      // FIX: Changed 'ingredients' to 'RecipeIngredient'
+      
       where.RecipeIngredient = {
         some: {
           ingredientId: { in: ingredientIds },
@@ -138,7 +138,6 @@ app.get('/api/recipes', function(req, res) {
     where: where,
     orderBy: orderBy,
     include: {
-      // FIX: Changed 'ingredients' to 'RecipeIngredient'
       RecipeIngredient: {
         include: {
           ingredient: true,
@@ -175,7 +174,6 @@ app.post('/api/recipes', function(req, res) {
           userId: username,
         },
       },
-      // FIX: Changed 'ingredients' to 'RecipeIngredient'
       RecipeIngredient: {
         create: ingredients.map(function(ing) {
             return {
@@ -186,7 +184,6 @@ app.post('/api/recipes', function(req, res) {
       },
     },
     include: {
-      // FIX: Changed 'users' and 'ingredients'
       UserRecipe: true,
       RecipeIngredient: true
     }
